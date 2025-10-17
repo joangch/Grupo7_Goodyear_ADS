@@ -60,6 +60,18 @@ class GestorDB:
                 estado TEXT NOT NULL,
                 FOREIGN KEY(pedido_id) REFERENCES pedidos(id)
             );
+
+            /* Mensajes de chat para reclamos */
+            CREATE TABLE IF NOT EXISTS mensajes_reclamo (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                reclamo_id INTEGER NOT NULL,
+                usuario_id INTEGER NOT NULL,
+                tipo_usuario TEXT NOT NULL,
+                mensaje TEXT NOT NULL,
+                fecha_envio TEXT NOT NULL,
+                FOREIGN KEY(reclamo_id) REFERENCES reclamos(id),
+                FOREIGN KEY(usuario_id) REFERENCES usuarios(id)
+            );
         ''')
         con.commit(); con.close()
 
@@ -144,5 +156,57 @@ class GestorDB:
                        FROM despachos d
                        JOIN pedidos p ON p.id = d.pedido_id
                        ORDER BY d.id DESC""")
+        rows = cur.fetchall(); con.close()
+        return [dict(r) for r in rows]
+
+    # ---------- Mensajes de Chat ----------
+    def crear_mensaje(self, reclamo_id: int, usuario_id: int, tipo_usuario: str, mensaje: str) -> int:
+        from datetime import datetime
+        con = self._connect(); cur = con.cursor()
+        cur.execute("""INSERT INTO mensajes_reclamo (reclamo_id, usuario_id, tipo_usuario, mensaje, fecha_envio)
+                       VALUES (?,?,?,?,?)""",
+                    (reclamo_id, usuario_id, tipo_usuario, mensaje, datetime.utcnow().isoformat()))
+        mid = cur.lastrowid; con.commit(); con.close()
+        return mid
+
+    def listar_mensajes(self, reclamo_id: int) -> List[Dict]:
+        con = self._connect(); cur = con.cursor()
+        cur.execute("""SELECT m.*, u.usuario 
+                       FROM mensajes_reclamo m
+                       JOIN usuarios u ON u.id = m.usuario_id
+                       WHERE m.reclamo_id = ?
+                       ORDER BY m.id ASC""", (reclamo_id,))
+        rows = cur.fetchall(); con.close()
+        return [dict(r) for r in rows]
+
+    # ---------- Métodos adicionales para reclamos ----------
+    def obtener_reclamo(self, reclamo_id: int) -> Optional[Dict]:
+        con = self._connect(); cur = con.cursor()
+        cur.execute("""SELECT r.*, u.usuario as cliente_usuario, u.email as cliente_email
+                       FROM reclamos r
+                       JOIN usuarios u ON u.id = r.cliente_id
+                       WHERE r.id = ?""", (reclamo_id,))
+        row = cur.fetchone(); con.close()
+        return dict(row) if row else None
+
+    def listar_reclamos_con_cliente(self, estado: Optional[str] = None, texto: Optional[str] = None) -> List[Dict]:
+        con = self._connect(); cur = con.cursor()
+        query = """SELECT r.*, u.usuario as cliente_usuario, u.email as cliente_email
+                   FROM reclamos r
+                   JOIN usuarios u ON u.id = r.cliente_id
+                   WHERE 1=1"""
+        params = []
+        
+        if estado and estado in ESTADOS:
+            query += " AND r.estado = ?"
+            params.append(estado)
+        
+        if texto and texto.strip():
+            query += " AND r.descripcion LIKE ?"
+            params.append(f"%{texto.strip()}%")
+        
+        query += " ORDER BY r.id DESC"
+        
+        cur.execute(query, params)
         rows = cur.fetchall(); con.close()
         return [dict(r) for r in rows]

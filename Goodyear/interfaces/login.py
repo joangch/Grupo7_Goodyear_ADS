@@ -38,11 +38,12 @@ def mostrar():
         if not usuario or not password:
             st.warning("⚠️ Por favor complete todos los campos.")
             return
-        
-        user = autenticar(usuario, password)
-        if user:
-            st.session_state["user"] = user
-            st.success(f"✅ ¡Bienvenido {user['usuario']}! Autenticación exitosa.")
+
+        resultado = autenticar(usuario, password)
+        if resultado:
+            uid, rol = resultado
+            st.session_state["user"] = {"id": uid, "usuario": usuario, "rol": rol}
+            st.success(f"✅ ¡Bienvenido {usuario}! Autenticación exitosa.")
             st.rerun()
         else:
             st.error("❌ Usuario o contraseña inválidos. Por favor intente nuevamente.")

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+import sqlite3
 import streamlit as st
-from config.configuracion import ROL_CLIENTE, ROL_INTERNO
+from config.configuracion import ROL_CLIENTE, ROL_INTERNO, DB_PATH
 from modulos.gestor_usuarios import GestorDB
 from modulos.seguridad import crear_usuario
 from interfaces import (
@@ -81,12 +82,32 @@ else:
 
         with col1:
             if st.button("Crear cliente de prueba"):
-                crear_usuario("cliente_demo", "cliente@example.com", "cliente123", ROL_CLIENTE)
-                st.success("Usuario cliente_demo creado.")
+                uid = crear_usuario("cliente_demo", "cliente@example.com", "cliente123", ROL_CLIENTE)
+                st.success(f"Usuario cliente_demo creado (id={uid}, rol={ROL_CLIENTE}).")
 
         with col2:
             if st.button("Crear interno de prueba"):
-                crear_usuario("interno_demo", "interno@example.com", "interno123", ROL_INTERNO)
-                st.success("Usuario interno_demo creado.")
+                uid = crear_usuario("interno_demo", "interno@example.com", "interno123", ROL_INTERNO)
+                st.success(f"Usuario interno_demo creado (id={uid}, rol={ROL_INTERNO}).")
 
         st.caption("Después de crear, vaya a Login para ingresar.")
+
+        with st.expander("Ver usuarios en la base de datos"):
+            try:
+                con = sqlite3.connect(DB_PATH)
+                cur = con.cursor()
+                cur.execute("SELECT id, usuario, rol, email FROM usuarios ORDER BY id")
+                rows = cur.fetchall()
+                cols = ["id", "usuario", "rol", "email"]
+                data = [dict(zip(cols, r)) for r in rows]
+                if data:
+                    st.table(data)
+                else:
+                    st.info("No hay usuarios registrados aún.")
+            except Exception as e:
+                st.error(f"No se pudo leer la base de datos: {e}")
+            finally:
+                try:
+                    con.close()
+                except Exception:
+                    pass

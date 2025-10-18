@@ -11,7 +11,7 @@ from interfaces import (
     programacion,
     rutas,
     reclamos_internos,
-    reporteria,
+    reporteria_clean as reporteria,
     pronosticos
 )
 

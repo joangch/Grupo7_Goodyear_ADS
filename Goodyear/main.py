@@ -2,8 +2,8 @@
 import sqlite3
 import streamlit as st
 from config.configuracion import ROL_CLIENTE, ROL_INTERNO, DB_PATH
-from modulos.gestor_usuarios import GestorDB
-from modulos.seguridad import crear_usuario
+from core.gestor_usuarios import GestorDB
+from core.seguridad import crear_usuario
 from interfaces import (
     login,
     pedidos,
@@ -80,15 +80,38 @@ else:
         st.subheader("Creación de usuarios de demostración")
         col1, col2 = st.columns(2)
 
+        def _get_user_id(username: str):
+            try:
+                con = sqlite3.connect(DB_PATH)
+                cur = con.cursor()
+                cur.execute("SELECT id FROM usuarios WHERE usuario=?", (username,))
+                row = cur.fetchone()
+                return int(row[0]) if row else None
+            except Exception:
+                return None
+            finally:
+                try:
+                    con.close()
+                except Exception:
+                    pass
+
         with col1:
             if st.button("Crear cliente de prueba"):
-                uid = crear_usuario("cliente_demo", "cliente@example.com", "cliente123", ROL_CLIENTE)
-                st.success(f"Usuario cliente_demo creado (id={uid}, rol={ROL_CLIENTE}).")
+                existing = _get_user_id("cliente_demo")
+                if existing:
+                    st.info(f"Usuario cliente_demo ya existía (id={existing}, rol={ROL_CLIENTE}).")
+                else:
+                    uid = crear_usuario("cliente_demo", "cliente@example.com", "cliente123", ROL_CLIENTE)
+                    st.success(f"Usuario cliente_demo creado (id={uid}, rol={ROL_CLIENTE}).")
 
         with col2:
             if st.button("Crear interno de prueba"):
-                uid = crear_usuario("interno_demo", "interno@example.com", "interno123", ROL_INTERNO)
-                st.success(f"Usuario interno_demo creado (id={uid}, rol={ROL_INTERNO}).")
+                existing = _get_user_id("interno_demo")
+                if existing:
+                    st.info(f"Usuario interno_demo ya existía (id={existing}, rol={ROL_INTERNO}).")
+                else:
+                    uid = crear_usuario("interno_demo", "interno@example.com", "interno123", ROL_INTERNO)
+                    st.success(f"Usuario interno_demo creado (id={uid}, rol={ROL_INTERNO}).")
 
         st.caption("Después de crear, vaya a Login para ingresar.")
 

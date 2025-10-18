@@ -1,7 +1,7 @@
 
 # -*- coding: utf-8 -*-
 import streamlit as st
-from modulos.gestor_usuarios import GestorDB
+from core.gestor_usuarios import GestorDB
 
 db = GestorDB()
 

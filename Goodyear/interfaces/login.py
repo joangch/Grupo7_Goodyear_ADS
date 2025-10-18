@@ -1,6 +1,6 @@
 
 import streamlit as st
-from modulos.seguridad import autenticar
+from core.seguridad import autenticar
 
 def mostrar():
     st.header("🔐 Módulo de Login")

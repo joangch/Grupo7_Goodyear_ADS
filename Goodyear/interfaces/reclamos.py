@@ -3,7 +3,7 @@ import os
 import streamlit as st
 from PIL import Image
 from pathlib import Path
-from core.gestor_usuarios import GestorDB
+from core.gestor_reclamos import GestorDB
 from core.validaciones import validar_descripcion, validar_imagen
 from core.gestor_archivos import guardar_imagen
 from config.configuracion import ROL_CLIENTE

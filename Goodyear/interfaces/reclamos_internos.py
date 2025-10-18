@@ -3,7 +3,7 @@ import os
 import streamlit as st
 from PIL import Image
 from pathlib import Path
-from core.gestor_usuarios import GestorDB
+from core.gestor_reclamos import GestorDB
 from config.configuracion import ESTADOS, ROL_INTERNO
 
 db = GestorDB()

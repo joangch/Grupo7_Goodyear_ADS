@@ -1,6 +1,6 @@
 
 import streamlit as st
-from core.gestor_usuarios import GestorDB
+from core.gestor_reclamos import GestorDB
 from core.validaciones import validar_mensaje
 from config.configuracion import ROL_CLIENTE, ROL_INTERNO
 

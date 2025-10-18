@@ -12,7 +12,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas
 
 try:
-    from core.gestor_usuarios import GestorDB
+    from core.gestor_reclamos import GestorDB
     _DB_OK = True
 except Exception:
     _DB_OK = False

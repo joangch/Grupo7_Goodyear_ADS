@@ -2,7 +2,7 @@
 import sqlite3
 import streamlit as st
 from config.configuracion import ROL_CLIENTE, ROL_INTERNO, DB_PATH
-from core.gestor_usuarios import GestorDB
+from core.gestor_reclamos import GestorDB
 from core.seguridad import crear_usuario
 from interfaces import (
     login,

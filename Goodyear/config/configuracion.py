@@ -5,6 +5,7 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = str(BASE_DIR / "data" / "goodyear.db")
 UPLOADS_DIR = str(BASE_DIR / "uploads")
+UPLOAD_DIR = BASE_DIR / "uploads"  # Path object for gestor_archivos
 LOGS_DIR = str(BASE_DIR / "logs" / "app.log")
 
 PASSWORD_SALT = "goodyear_demo_salt"

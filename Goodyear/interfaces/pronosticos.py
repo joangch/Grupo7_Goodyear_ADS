@@ -7,11 +7,14 @@ Versión: 2.0
 import streamlit as st
 import numpy as np
 from datetime import datetime, timedelta
-from sklearn.linear_model import LinearRegression
-from sklearn.metrics import mean_absolute_error, mean_squared_error
+# Import scikit-learn lazily inside functions to avoid breaking app startup
+# if scikit-learn is not installed in the environment. We provide numpy
+# fallbacks for core functionality so the interface remains usable.
 import json
 import warnings
 warnings.filterwarnings('ignore')
+
+from core.pronosticos_db import fetch_series
 
 
 class ForecastModel:
@@ -62,8 +65,18 @@ class ForecastModel:
                 np.cos(2 * np.pi * X / 12)
             ])
             
-            model = LinearRegression()
-            model.fit(X_features, y)
+            try:
+                from sklearn.linear_model import LinearRegression
+                model = LinearRegression()
+                model.fit(X_features, y)
+                predict_fn = lambda Xp: model.predict(Xp)
+            except Exception:
+                # Fallback: simple least-squares with intercept using numpy
+                Xf = np.hstack([np.ones((X_features.shape[0], 1)), X_features])
+                beta, *_ = np.linalg.lstsq(Xf, y, rcond=None)
+                def predict_fn(Xp):
+                    Xp_f = np.hstack([np.ones((Xp.shape[0], 1)), Xp])
+                    return Xp_f.dot(beta)
             
             # Predicción
             future_X = np.arange(n, n + periods).reshape(-1, 1)
@@ -73,10 +86,10 @@ class ForecastModel:
                 np.cos(2 * np.pi * future_X / 12)
             ])
             
-            forecast = model.predict(future_features)
+            forecast = predict_fn(future_features)
             
             # Intervalos de confianza
-            residuals = y - model.predict(X_features)
+            residuals = y - predict_fn(X_features)
             std = np.std(residuals)
             
             confidence_lower = [max(0, f - 1.96 * std) for f in forecast]
@@ -95,9 +108,19 @@ class ForecastModel:
             
             # Calcular tendencia
             X = np.arange(n).reshape(-1, 1)
-            model = LinearRegression()
-            model.fit(X, data)
-            trend = model.predict(X)
+            try:
+                from sklearn.linear_model import LinearRegression
+                model = LinearRegression()
+                model.fit(X, data)
+                trend = model.predict(X)
+                pred_fn = lambda Xp: model.predict(Xp)
+            except Exception:
+                Xf = np.hstack([np.ones((X.shape[0], 1)), X])
+                beta, *_ = np.linalg.lstsq(Xf, data, rcond=None)
+                def pred_fn(Xp):
+                    Xp_f = np.hstack([np.ones((Xp.shape[0], 1)), Xp])
+                    return Xp_f.dot(beta)
+                trend = pred_fn(X)
             
             # Estacionalidad
             seasonal = data - trend
@@ -106,7 +129,7 @@ class ForecastModel:
             
             # Proyección
             future_X = np.arange(n, n + periods).reshape(-1, 1)
-            trend_forecast = model.predict(future_X)
+            trend_forecast = pred_fn(future_X)
             
             # Agregar estacionalidad
             seasonal_forecast = [seasonal_pattern[i % len(seasonal_pattern)] for i in range(periods)]
@@ -125,9 +148,17 @@ class ForecastModel:
     @staticmethod
     def calculate_metrics(actual, predicted):
         """Calcula métricas de precisión"""
-        mae = mean_absolute_error(actual, predicted)
-        rmse = np.sqrt(mean_squared_error(actual, predicted))
-        mape = np.mean(np.abs((actual - predicted) / np.where(actual != 0, actual, 1))) * 100
+        try:
+            from sklearn.metrics import mean_absolute_error, mean_squared_error
+            mae = mean_absolute_error(actual, predicted)
+            rmse = np.sqrt(mean_squared_error(actual, predicted))
+        except Exception:
+            a = np.array(actual)
+            p = np.array(predicted)
+            mae = float(np.mean(np.abs(a - p)))
+            rmse = float(np.sqrt(np.mean((a - p) ** 2)))
+
+        mape = np.mean(np.abs((np.array(actual) - np.array(predicted)) / np.where(np.array(actual) != 0, np.array(actual), 1))) * 100
         
         return {
             'MAE': round(mae, 2),
@@ -136,37 +167,9 @@ class ForecastModel:
         }
 
 
-class DataGenerator:
-    """Generador de datos de ventas"""
-    
-    @staticmethod
-    def generate_sample_data(months=24):
-        """Genera datos sintéticos de ventas"""
-        start_date = datetime(2023, 1, 1)
-        
-        data = {
-            'fecha': [],
-            'eagle_f1': [],
-            'assurance': [],
-            'wrangler': [],
-            'efficientgrip': []
-        }
-        
-        for i in range(months):
-            date = start_date + timedelta(days=30*i)
-            data['fecha'].append(date.strftime('%Y-%m-%d'))
-            
-            # Tendencia + estacionalidad + ruido
-            trend = i * 5
-            seasonal = 100 * np.sin(2 * np.pi * i / 12)
-            noise = np.random.normal(0, 30)
-            
-            data['eagle_f1'].append(int(max(0, 450 + trend + seasonal + noise)))
-            data['assurance'].append(int(max(0, 780 + trend * 1.2 + seasonal * 1.1 + noise)))
-            data['wrangler'].append(int(max(0, 620 + trend * 0.8 + seasonal * 0.9 + noise)))
-            data['efficientgrip'].append(int(max(0, 540 + trend + seasonal * 0.95 + noise)))
-        
-        return data
+# Note: Removed DataGenerator (synthetic data) as DB will always be present.
+def _empty_data_structure():
+    return {'fecha': [], 'eagle_f1': [], 'assurance': [], 'wrangler': [], 'efficientgrip': []}
 
 
 def plot_forecast_simple(historical, forecast, lower, upper, dates_hist, dates_fore):
@@ -237,9 +240,20 @@ def main():
         </div>
     """, unsafe_allow_html=True)
     
-    # Inicializar datos en session_state
+    # Inicializar datos en session_state: preferir datos desde la BD si existen
     if 'data' not in st.session_state:
-        st.session_state.data = DataGenerator.generate_sample_data()
+        try:
+            # Leer directamente la tabla real `pronostico_historial`
+            db_data = fetch_series('pronostico_historial')
+            if db_data and len(db_data.get('fecha', [])) > 0:
+                st.session_state.data = db_data
+            else:
+                st.error("No se encontraron datos en la tabla 'pronostico_historial'.")
+                st.session_state.data = _empty_data_structure()
+        except Exception as e:
+            # Si falla la DB, mostrar error y usar estructura vacía
+            st.error(f"Error al leer la base de datos: {e}")
+            st.session_state.data = _empty_data_structure()
     
     if 'forecast_results' not in st.session_state:
         st.session_state.forecast_results = None
@@ -252,9 +266,15 @@ def main():
         # Sección: Datos
         st.subheader("📊 Gestión de Datos")
         
-        if st.button("🔄 Cargar Datos de Ejemplo", use_container_width=True):
-            st.session_state.data = DataGenerator.generate_sample_data()
-            st.success("✓ Datos cargados (24 meses)")
+        if st.button("🔄 Cargar Datos de Ejemplo (DB)", use_container_width=True):
+            try:
+                # Cargar desde la tabla real `pronostico_historial`
+                st.session_state.data = fetch_series('pronostico_historial')
+                st.success("✓ Datos cargados desde la base de datos (pronostico_historial)")
+            except Exception as e:
+                st.warning(f"No se pudo cargar desde BD: {e}.")
+                st.session_state.data = _empty_data_structure()
+                st.info("Se ha asignado una estructura vacía. Verifica la conexión a la base de datos.")
         
         st.markdown("---")
         

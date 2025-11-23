@@ -136,3 +136,7 @@ config/local_config.py
 *.manifest
 *.bak
 *.tmp
+
+# Entornos virtuales
+Goodyear/.venv
+.venv/
